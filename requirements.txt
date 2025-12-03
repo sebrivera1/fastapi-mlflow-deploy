@@ -4,7 +4,6 @@ fastapi
 uvicorn
 pandas
 pydantic
-gradio
 requests
 transformers
 torch
