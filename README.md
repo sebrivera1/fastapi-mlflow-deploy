@@ -10,7 +10,7 @@ POC of Production-ready model serving backend using Ray Serve and MLflow, with G
 - **Health checks**: Built-in health monitoring
 - **Gradio UI**: User-friendly interface for model inference
 
-## Setup
+## Local Setup
 
 ### 1. Install Dependencies
 
@@ -74,7 +74,7 @@ curl -X POST http://localhost:8000/predict \
 curl http://localhost:8000/health
 ```
 
-### Gradio UI
+### Gradio UI - Local deployment, Otherwise a Separate Railway or deployed service you need. 
 
 1. Open browser to `http://localhost:7860`
 2. Enter input text
