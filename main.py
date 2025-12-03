@@ -107,4 +107,5 @@ if __name__ == "__main__":
         default_version=MODEL_VERSION
     )
     # blocking=True keeps the process alive for Railway
-    serve.run(deployment, host="0.0.0.0", port=PORT, blocking=True)
+    serve.start(http_options={"host": "0.0.0.0", "port": PORT})
+    serve.run(deployment, blocking=True)
