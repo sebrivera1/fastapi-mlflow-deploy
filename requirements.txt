@@ -1,7 +1,10 @@
-
-
-git remote add origin https://github.com/sebrivera1/rayserve-mlflow-deploy.git
-
-git commit -m "Initial commit"
-
-git push -u origin main
+mlflow
+ray[serve]==2.9.0
+fastapi
+uvicorn
+pandas
+pydantic
+gradio
+requests
+transformers
+torch
