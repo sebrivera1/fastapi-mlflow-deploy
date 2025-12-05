@@ -6,6 +6,15 @@ from typing import Optional
 # Backend configuration from environment
 BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
 
+# Fix Railway internal URL if needed
+if BACKEND_URL and not BACKEND_URL.startswith(("http://", "https://")):
+    # Add http:// scheme if missing
+    BACKEND_URL = f"http://{BACKEND_URL}"
+
+# Replace port 80 with 8080 for Railway deployments
+if ":80" in BACKEND_URL and "railway.internal" in BACKEND_URL:
+    BACKEND_URL = BACKEND_URL.replace(":80", ":8080")
+
 def predict(name, height, weight, squat, bench, deadlift, model_version: Optional[str] = None):
     """Send prediction request to Ray Serve backend"""
 
@@ -16,15 +25,21 @@ def predict(name, height, weight, squat, bench, deadlift, model_version: Optiona
     if model_version and model_version.strip():
         headers["serve_multiplexed_model_id"] = model_version.strip()
 
-    # Prepare payload with fitness metrics
+    # Prepare payload matching FastAPI backend schema
     payload = {
-        "name": name,
-        "height": height,
-        "weight": weight,
-        "squat": squat,
-        "bench": bench,
-        "deadlift": deadlift
+        "model_input": {
+            "name": name,
+            "height": height,
+            "weight": weight,
+            "squat": squat,
+            "bench": bench,
+            "deadlift": deadlift
+        }
     }
+
+    # Add version to payload if provided
+    if model_version and model_version.strip():
+        payload["version"] = model_version.strip()
 
     try:
         response = requests.post(url, json=payload, headers=headers)
