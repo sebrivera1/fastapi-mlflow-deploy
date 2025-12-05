@@ -92,7 +92,8 @@ def check_health():
 # Create Gradio interface
 with gr.Blocks(title="Power Lifting SBD Predictor") as demo:
     gr.Markdown("# Power Lifting SBD Predictor")
-    gr.Markdown(f"Backend: `{BACKEND_URL}`")
+    #debugging print
+    # gr.Markdown(f"Backend: `{BACKEND_URL}`")
 
     with gr.Row():
         health_output = gr.Textbox(label="Backend Status", interactive=False)
