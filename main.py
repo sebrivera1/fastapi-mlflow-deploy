@@ -60,13 +60,82 @@ def load_model(version: str):
     if version not in model_cache:
         model_uri = f"models:/{MODEL_NAME}/{version}"
         model = mlflow.pyfunc.load_model(model_uri)
-        
+
         if default_signature and model.metadata.signature != default_signature:
             raise ValueError(f"Model version {version} has incompatible signature")
-        
+
         model_cache[version] = model
-    
+
     return model_cache[version]
+
+def transform_payload_to_features(payload: Dict[str, Any]) -> pd.DataFrame:
+    """
+    Transform incoming payload to match the trained model's feature set.
+
+    Expected input payload keys:
+    - Squat1Kg (or squat1kg, etc.)
+    - BodyweightKg (or bodyweightkg, etc.)
+    - Sex (values: 'F' or 'M')
+    - Cluster (values: 0.0 to 14.0)
+    - long_distance_travel (boolean or 0/1)
+    - TotalKg (or totalkg, etc.)
+
+    Returns DataFrame with all required features in correct format.
+    """
+    # Define all expected features in the order the model expects
+    expected_features = [
+        'Squat1Kg', 'BodyweightKg',
+        'Sex_F', 'Sex_M',
+        'Cluster_0.0', 'Cluster_1.0', 'Cluster_2.0', 'Cluster_3.0', 'Cluster_4.0',
+        'Cluster_5.0', 'Cluster_6.0', 'Cluster_7.0', 'Cluster_8.0', 'Cluster_9.0',
+        'Cluster_10.0', 'Cluster_11.0', 'Cluster_12.0', 'Cluster_13.0', 'Cluster_14.0',
+        'long_distance_travel', 'TotalKg'
+    ]
+
+    # Create a case-insensitive mapping for the payload
+    payload_lower = {k.lower(): v for k, v in payload.items()}
+
+    # Initialize result dictionary with default values (False for booleans, 0.0 for floats)
+    result = {}
+
+    # Extract numeric features (case-insensitive)
+    result['Squat1Kg'] = float(payload_lower.get('squat1kg', 0.0))
+    result['BodyweightKg'] = float(payload_lower.get('bodyweightkg', 0.0))
+    result['TotalKg'] = float(payload_lower.get('totalkg', 0.0))
+
+    # One-hot encode Sex
+    sex_value = payload_lower.get('sex', '').upper()
+    result['Sex_F'] = sex_value == 'F'
+    result['Sex_M'] = sex_value == 'M'
+
+    # One-hot encode Cluster (supports both int and float formats)
+    cluster_value = payload_lower.get('cluster', None)
+    if cluster_value is not None:
+        cluster_value = float(cluster_value)
+
+    for i in range(15):  # Clusters 0 to 14
+        result[f'Cluster_{float(i):.1f}'] = (cluster_value == float(i)) if cluster_value is not None else False
+
+    # Boolean feature
+    travel_value = payload_lower.get('long_distance_travel', False)
+    if isinstance(travel_value, str):
+        travel_value = travel_value.lower() in ('true', '1', 'yes')
+    result['long_distance_travel'] = bool(travel_value)
+
+    # Create DataFrame with features in the correct order
+    df = pd.DataFrame([result])[expected_features]
+
+    # Ensure proper types
+    df['Squat1Kg'] = df['Squat1Kg'].astype('float64')
+    df['BodyweightKg'] = df['BodyweightKg'].astype('float64')
+    df['TotalKg'] = df['TotalKg'].astype('float64')
+
+    # Convert boolean columns to bool type
+    bool_columns = [col for col in expected_features if col not in ['Squat1Kg', 'BodyweightKg', 'TotalKg']]
+    for col in bool_columns:
+        df[col] = df[col].astype('bool')
+
+    return df
 
 @app.post("/predict")
 async def predict(
@@ -75,7 +144,7 @@ async def predict(
 ):
     """Make predictions using specified model version"""
     version = request.version or serve_multiplexed_model_id or MODEL_VERSION
-    
+
     try:
         model = load_model(version)
     except ValueError as e:
@@ -85,19 +154,20 @@ async def predict(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error loading model: {str(e)}"
         )
-    
-    # Create DataFrame from input
-    df = pd.DataFrame({k: [v] for k, v in request.model_input.items()})
-
-    # Remove non-numeric columns (like 'name') that shouldn't be used for prediction
-    numeric_columns = df.select_dtypes(include=[np.number]).columns.tolist()
-    df_numeric = df[numeric_columns]
 
     try:
+        # Transform payload to match model's feature set
+        df = transform_payload_to_features(request.model_input)
+
+        print(f"Transformed input shape: {df.shape}")
+        print(f"Transformed columns: {df.columns.tolist()}")
+        print(f"Transformed data types:\n{df.dtypes}")
+        print(f"Transformed data:\n{df.to_dict(orient='records')}")
+
         # Suppress sklearn feature names warning for models trained without feature names
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", message="X has feature names")
-            result = model.predict(df_numeric)
+            result = model.predict(df)
 
         return {
             "prediction": result.tolist() if hasattr(result, 'tolist') else result,
@@ -108,11 +178,7 @@ async def predict(
         # Log detailed error information
         print(f"Prediction error details:")
         print(f"  Error: {str(e)}")
-        print(f"  Original input shape: {df.shape}")
-        print(f"  Original columns: {df.columns.tolist()}")
-        print(f"  Numeric input shape: {df_numeric.shape}")
-        print(f"  Numeric columns: {df_numeric.columns.tolist()}")
-        print(f"  Numeric data: {df_numeric.to_dict()}")
+        print(f"  Input payload: {request.model_input}")
 
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
