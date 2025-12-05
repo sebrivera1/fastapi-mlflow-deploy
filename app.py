@@ -110,12 +110,6 @@ with gr.Blocks(title="Power Lifting SBD Predictor") as demo:
             bench_input = gr.Slider(minimum=0, maximum=635, value=60, label="Bench Press (kg)")
             deadlift_input = gr.Slider(minimum=0, maximum=1000, value=0, label="Deadlift (kg)")
 
-    with gr.Row():
-        model_version = gr.Textbox(
-            label="Model Version (optional)",
-            placeholder="Leave empty for default version"
-        )
-
     submit_btn = gr.Button("Predict Cluster", variant="primary")
 
     output = gr.Textbox(
