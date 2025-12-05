@@ -23,22 +23,22 @@ if "railway.internal" in BACKEND_URL:
 #debug print
 #print(f"[INFO] Backend URL configured as: {BACKEND_URL}")
 
-def predict(name, height, weight, squat, bench, deadlift):
-    """Send prediction request to Ray Serve backend"""
+def predict(name, bodyweight, squat, sex, cluster, long_distance_travel, total):
+    """Send prediction request to backend"""
 
     # Prepare request
     url = f"{BACKEND_URL}/predict"
     headers = {}
 
-    # Prepare payload matching FastAPI backend schema
+    # Prepare payload matching the model's expected features
     payload = {
         "model_input": {
-            "name": name,
-            "height": height,
-            "weight": weight,
-            "squat": squat,
-            "bench": bench,
-            "deadlift": deadlift
+            "Squat1Kg": squat,
+            "BodyweightKg": bodyweight,
+            "Sex": sex,
+            "Cluster": cluster,
+            "long_distance_travel": long_distance_travel,
+            "TotalKg": total
         }
     }
 
@@ -48,30 +48,32 @@ def predict(name, height, weight, squat, bench, deadlift):
         if response.status_code == 200:
             result = response.json()
             prediction = result.get("prediction", "No prediction returned")
-            return f"Cluster Prediction for {name}:\n{prediction}"
+            return f"Prediction for {name}:\n{prediction}"
         else:
-            # Fallback to local prediction if backend unavailable
+            # Fallback if backend unavailable
             result = f"""
-Cluster Prediction for {name}:
-- Height: {height} cm
-- Weight: {weight} kg
+Prediction for {name}:
+- Bodyweight: {bodyweight} kg
 - Squat: {squat} kg
-- Bench Press: {bench} kg
-- Deadlift: {deadlift} kg
+- Sex: {sex}
+- Cluster: {cluster}
+- Long Distance Travel: {long_distance_travel}
+- Total: {total} kg
 
 Note: Backend unavailable (status {response.status_code}), showing input summary only.
 """
             return result
 
     except Exception as e:
-        # Fallback to local prediction if backend unavailable
+        # Fallback if backend unavailable
         result = f"""
-Cluster Prediction for {name}:
-- Height: {height} cm
-- Weight: {weight} kg
+Prediction for {name}:
+- Bodyweight: {bodyweight} kg
 - Squat: {squat} kg
-- Bench Press: {bench} kg
-- Deadlift: {deadlift} kg
+- Sex: {sex}
+- Cluster: {cluster}
+- Long Distance Travel: {long_distance_travel}
+- Total: {total} kg
 
 Note: Cannot connect to backend ({str(e)}), showing input summary only.
 """
@@ -99,20 +101,21 @@ with gr.Blocks(title="Power Lifting SBD Predictor") as demo:
         health_output = gr.Textbox(label="Backend Status", interactive=False)
         health_btn = gr.Button("Check Health")
 
-    gr.Markdown("## Enter Your Height/weight and Personal Records")
+    gr.Markdown("## Enter Your Athlete Information")
 
     with gr.Row():
         with gr.Column():
             name_input = gr.Textbox(label="Name", placeholder="Enter your name")
-            height_input = gr.Slider(minimum=100, maximum=350, value=150, label="Height (cm)")
-            weight_input = gr.Slider(minimum=30, maximum=2000, value=70, label="Weight (kg)")
+            bodyweight_input = gr.Slider(minimum=30, maximum=200, value=75, label="Bodyweight (kg)")
+            squat_input = gr.Slider(minimum=0, maximum=500, value=150, label="Squat 1RM (kg)")
+            total_input = gr.Slider(minimum=0, maximum=1500, value=400, label="Total (kg)")
 
         with gr.Column():
-            squat_input = gr.Slider(minimum=0, maximum=1000, value=50, label="Squat (kg)")
-            bench_input = gr.Slider(minimum=0, maximum=635, value=60, label="Bench Press (kg)")
-            deadlift_input = gr.Slider(minimum=0, maximum=1000, value=0, label="Deadlift (kg)")
+            sex_input = gr.Radio(choices=["M", "F"], value="M", label="Sex")
+            cluster_input = gr.Slider(minimum=0, maximum=14, step=1, value=5, label="Cluster")
+            long_distance_input = gr.Checkbox(label="Long Distance Travel", value=False)
 
-    submit_btn = gr.Button("Predict Cluster", variant="primary")
+    submit_btn = gr.Button("Get Prediction", variant="primary")
 
     output = gr.Textbox(
         label="Prediction Result",
@@ -124,7 +127,7 @@ with gr.Blocks(title="Power Lifting SBD Predictor") as demo:
     health_btn.click(fn=check_health, outputs=health_output)
     submit_btn.click(
         fn=predict,
-        inputs=[name_input, height_input, weight_input, squat_input, bench_input, deadlift_input],
+        inputs=[name_input, bodyweight_input, squat_input, sex_input, cluster_input, long_distance_input, total_input],
         outputs=output
     )
 
