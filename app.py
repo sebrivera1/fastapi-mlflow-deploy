@@ -10,9 +10,17 @@ if BACKEND_URL and not BACKEND_URL.startswith(("http://", "https://")):
     # Add http:// scheme if missing
     BACKEND_URL = f"http://{BACKEND_URL}"
 
-# Replace port 80 with 8080 for Railway deployments
-if ":80" in BACKEND_URL and "railway.internal" in BACKEND_URL:
-    BACKEND_URL = BACKEND_URL.replace(":80", ":8080")
+# If Railway internal URL has no port or wrong port, fix it
+if "railway.internal" in BACKEND_URL:
+    # Check if it has :80 and replace with :8080
+    if ":80/" in BACKEND_URL or BACKEND_URL.endswith(":80"):
+        BACKEND_URL = BACKEND_URL.replace(":80", ":8080")
+    # Check if it has no port at all
+    elif not any(f":{port}" in BACKEND_URL for port in ["8080", "443", "8000"]):
+        # Add port 8080 right after railway.internal
+        BACKEND_URL = BACKEND_URL.replace("railway.internal", "railway.internal:8080")
+
+print(f"[INFO] Backend URL configured as: {BACKEND_URL}")
 
 def predict(name, height, weight, squat, bench, deadlift):
     """Send prediction request to Ray Serve backend"""
