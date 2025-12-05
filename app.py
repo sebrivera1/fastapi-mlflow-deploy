@@ -1,7 +1,6 @@
 import os
 import gradio as gr
 import requests
-from typing import Optional
 
 # Backend configuration from environment
 BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
@@ -15,15 +14,12 @@ if BACKEND_URL and not BACKEND_URL.startswith(("http://", "https://")):
 if ":80" in BACKEND_URL and "railway.internal" in BACKEND_URL:
     BACKEND_URL = BACKEND_URL.replace(":80", ":8080")
 
-def predict(name, height, weight, squat, bench, deadlift, model_version: Optional[str] = None):
+def predict(name, height, weight, squat, bench, deadlift):
     """Send prediction request to Ray Serve backend"""
 
     # Prepare request
     url = f"{BACKEND_URL}/predict"
     headers = {}
-
-    if model_version and model_version.strip():
-        headers["serve_multiplexed_model_id"] = model_version.strip()
 
     # Prepare payload matching FastAPI backend schema
     payload = {
@@ -36,10 +32,6 @@ def predict(name, height, weight, squat, bench, deadlift, model_version: Optiona
             "deadlift": deadlift
         }
     }
-
-    # Add version to payload if provided
-    if model_version and model_version.strip():
-        payload["version"] = model_version.strip()
 
     try:
         response = requests.post(url, json=payload, headers=headers)
@@ -122,7 +114,7 @@ with gr.Blocks(title="Power Lifting SBD Predictor") as demo:
     health_btn.click(fn=check_health, outputs=health_output)
     submit_btn.click(
         fn=predict,
-        inputs=[name_input, height_input, weight_input, squat_input, bench_input, deadlift_input, model_version],
+        inputs=[name_input, height_input, weight_input, squat_input, bench_input, deadlift_input],
         outputs=output
     )
 
