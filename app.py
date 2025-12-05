@@ -20,7 +20,8 @@ if "railway.internal" in BACKEND_URL:
         # Add port 8080 right after railway.internal
         BACKEND_URL = BACKEND_URL.replace("railway.internal", "railway.internal:8080")
 
-print(f"[INFO] Backend URL configured as: {BACKEND_URL}")
+#debug print
+#print(f"[INFO] Backend URL configured as: {BACKEND_URL}")
 
 def predict(name, height, weight, squat, bench, deadlift):
     """Send prediction request to Ray Serve backend"""
