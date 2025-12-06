@@ -78,8 +78,9 @@ def install_model_dependencies(model_name: str, model_version: str) -> bool:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Lifespan event handler for startup and shutdown"""
-    global default_signature
-
+    global default_signatures
+    # Clear model cache on startup
+    #
     # Initialize MLflow with proper URI scheme
     tracking_uri = os.getenv("MLFLOW_TRACKING_URI", "http://localhost:5000")
     # Ensure proper URI scheme (http/https)
