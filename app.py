@@ -5,6 +5,9 @@ import requests
 # Backend configuration from environment
 BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
 
+# In-memory storage for full feature payloads
+stored_payloads = []
+
 # Fix Railway internal URL if needed
 if BACKEND_URL and not BACKEND_URL.startswith(("http://", "https://")):
     # Add http:// scheme if missing
@@ -33,9 +36,19 @@ def predict(name, height, weight, squat, bench, deadlift, sex):
     # Calculate total from the three lifts
     total = squat + bench + deadlift
 
-    # Prepare payload - backend will handle feature transformation
+    # Payload 1: Current backend prediction (only 3 lift features)
     payload = {
         "model_input": {
+            "Best3SquatKg": squat,
+            "Best3BenchKg": bench,
+            "Best3DeadliftKg": deadlift
+        }
+    }
+
+    # Payload 2: Full feature set for future predictor (stored in memory)
+    full_payload = {
+        "model_input": {
+            "name": name,
             "height": height,
             "weight": weight,
             "squat": squat,
@@ -45,6 +58,10 @@ def predict(name, height, weight, squat, bench, deadlift, sex):
             "total": total
         }
     }
+
+    # Store full payload in memory
+    stored_payloads.append(full_payload)
+    print(f"[INFO] Stored payload #{len(stored_payloads)} in memory for {name}")
 
     try:
         response = requests.post(url, json=payload, headers=headers)
