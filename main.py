@@ -390,13 +390,36 @@ async def predict_full(
 
         # Stage 2: Predict total using model_2 with cluster output
         # Build payload for model 2
+
+        # Extract squat_first_attempt, defaulting to squat if not provided or invalid
+        squat_first_attempt_raw = payload_lower.get('squat_first_attempt')
+        if squat_first_attempt_raw is None or squat_first_attempt_raw is False or squat_first_attempt_raw == '':
+            squat_first_attempt = squat_kg  # Use best squat as default
+        else:
+            squat_first_attempt = float(squat_first_attempt_raw)
+
+        # Extract long_distance, handle as boolean
+        long_distance_raw = payload_lower.get('long_distance', False)
+        if isinstance(long_distance_raw, bool):
+            long_distance = long_distance_raw
+        elif isinstance(long_distance_raw, str):
+            long_distance = long_distance_raw.lower() in ('true', '1', 'yes')
+        elif isinstance(long_distance_raw, (int, float)):
+            # Frontend is sending slider value instead of checkbox, treat non-zero as True
+            long_distance = bool(long_distance_raw)
+        else:
+            long_distance = False
+
         model_2_payload = {
-            'Squat1Kg': float(payload_lower.get('squat_first_attempt', squat_kg)),
+            'Squat1Kg': squat_first_attempt,
             'BodyweightKg': float(payload_lower.get('weight', 0.0)),
             'Sex': payload_lower.get('sex', 'M').upper(),
             'Cluster': float(cluster_value),
-            'long_distance_travel': payload_lower.get('long_distance', False)
+            'long_distance_travel': long_distance
         }
+
+        print(f"[Model 2] Extracted squat_first_attempt: {squat_first_attempt}")
+        print(f"[Model 2] Extracted long_distance: {long_distance}")
 
         df_total = transform_payload_for_second_model(model_2_payload)
 
