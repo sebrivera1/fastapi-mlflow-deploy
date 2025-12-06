@@ -1,10 +1,10 @@
-mlflow==3.4.0
-cloudpickle==3.1.1
-numpy==2.0.1
-pandas==2.2.3
+mlflow==3.7.0
+cloudpickle==3.1.2
+numpy==2.3.3
+pandas==2.3.3
 psutil>=5.9.0
-scikit-learn==1.6.1
-scipy==1.15.2
+scikit-learn==1.7.2
+scipy==1.16.2
 fastapi
 uvicorn
 pydantic
