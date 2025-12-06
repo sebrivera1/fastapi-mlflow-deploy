@@ -13,7 +13,7 @@ from pydantic import BaseModel
 
 # Global state
 MODEL_NAME = os.getenv("MODEL_NAME", "lifter-kmeans")
-MODEL_VERSION = os.getenv("MODEL_VERSION", "1")
+MODEL_VERSION = os.getenv("MODEL_VERSION", "2")
 MODEL_2_NAME = os.getenv("MODEL_2_NAME", "model_a_squat")
 MODEL_2_VERSION = os.getenv("MODEL_2_VERSION", "1")
 model_cache = {}
