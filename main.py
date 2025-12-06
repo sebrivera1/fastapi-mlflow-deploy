@@ -14,7 +14,7 @@ from fastapi import FastAPI, Header, HTTPException, status, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-# Configure logging
+# Configure logging,
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
