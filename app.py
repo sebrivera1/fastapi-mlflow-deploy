@@ -55,6 +55,20 @@ def predict(name, weight, squat, bench, deadlift, sex, long_distance, squat_firs
     stored_payloads.append(full_payload)
     print(f"[INFO] Stored payload #{len(stored_payloads)} in memory for {name}")
 
+    # Helper function to format input summary
+    def format_summary():
+        return f"""
+Input Summary:
+- Bodyweight: {weight} kg
+- Sex: {sex}
+- Best Squat: {squat} kg
+- Best Bench: {bench} kg
+- Best Deadlift: {deadlift} kg
+- Current Total: {total} kg
+- First Squat Attempt: {squat_first_attempt} kg
+- Long Distance Travel: {'Yes' if long_distance else 'No'}
+"""
+
     try:
         response = requests.post(url, json=full_payload, headers=headers)
 
@@ -69,74 +83,17 @@ Predictions for {name}:
 🎯 Cluster Assignment: {cluster_pred}
 📊 Predicted Total: {total_pred:.2f} kg
 
-Input Summary:
-- Bodyweight: {weight} kg
-- Sex: {sex}
-- Best Squat: {squat} kg
-- Best Bench: {bench} kg
-- Best Deadlift: {deadlift} kg
-- Current Total: {total} kg
-- First Squat Attempt: {squat_first_attempt} kg
-- Long Distance Travel: {'Yes' if long_distance else 'No'}
-
+{format_summary()}
 Model Info:
 - Clustering Model: {result.get('model_1_name', 'N/A')} v{result.get('model_1_version', 'N/A')}
 - Total Predictor: {result.get('model_2_name', 'N/A')} v{result.get('model_2_version', 'N/A')}
 """
             return output_text
         else:
-            # Fallback if backend unavailable
-            result = f"""
-<<<<<<< HEAD
-Predictions for {name}:
-=======
-Cluster Prediction for {name}:
-- Weight: {weight} kg
-- Squat: {squat} kg
-- Bench: {bench} kg
-- Deadlift: {deadlift} kg
-- Sex: {sex}
-- Total: {total} kg
->>>>>>> e5c8c69266310150c7efaceefefb67a0b214adc1
-
-Note: Backend unavailable (status {response.status_code})
-
-Input Summary:
-- Bodyweight: {weight} kg
-- Sex: {sex}
-- Best Squat: {squat} kg
-- Best Bench: {bench} kg
-- Best Deadlift: {deadlift} kg
-- Current Total: {total} kg
-- First Squat Attempt: {squat_first_attempt} kg
-- Long Distance Travel: {'Yes' if long_distance else 'No'}
-"""
-            return result
+            return f"Cluster Prediction for {name}:\nNote: Backend unavailable (status {response.status_code})\n{format_summary()}"
 
     except Exception as e:
-        # Fallback if backend unavailable
-        result = f"""
-Cluster Prediction for {name}:
-- Weight: {weight} kg
-- Squat: {squat} kg
-- Bench: {bench} kg
-- Deadlift: {deadlift} kg
-- Sex: {sex}
-- Total: {total} kg
-
-Note: Cannot connect to backend ({str(e)})
-
-Input Summary:
-- Bodyweight: {weight} kg
-- Sex: {sex}
-- Best Squat: {squat} kg
-- Best Bench: {bench} kg
-- Best Deadlift: {deadlift} kg
-- Current Total: {total} kg
-- First Squat Attempt: {squat_first_attempt} kg
-- Long Distance Travel: {'Yes' if long_distance else 'No'}
-"""
-        return result
+        return f"Cluster Prediction for {name}:\nNote: Cannot connect to backend ({str(e)})\n{format_summary()}"
 
 def check_health():
     """Check backend health status"""
