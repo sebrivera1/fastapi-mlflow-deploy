@@ -49,12 +49,13 @@ def predict(name, height, weight, squat, bench, deadlift, sex):
     full_payload = {
         "model_input": {
             "name": name,
-            "height": height,
+            "long_distance": long_distance,
             "weight": weight,
             "squat": squat,
             "bench": bench,
             "deadlift": deadlift,
             "sex": sex,
+            "squat_first_attempt": squat_first_attempt,
             "total": total
         }
     }
@@ -74,7 +75,6 @@ def predict(name, height, weight, squat, bench, deadlift, sex):
             # Fallback if backend unavailable
             result = f"""
 Cluster Prediction for {name}:
-- Height: {height} cm
 - Weight: {weight} kg
 - Squat: {squat} kg
 - Bench: {bench} kg
@@ -90,7 +90,6 @@ Note: Backend unavailable (status {response.status_code}), showing input summary
         # Fallback if backend unavailable
         result = f"""
 Cluster Prediction for {name}:
-- Height: {height} cm
 - Weight: {weight} kg
 - Squat: {squat} kg
 - Bench: {bench} kg
@@ -129,14 +128,15 @@ with gr.Blocks(title="Power Lifting SBD Predictor") as demo:
     with gr.Row():
         with gr.Column():
             name_input = gr.Textbox(label="Name", placeholder="Enter your name")
-            height_input = gr.Slider(minimum=100, maximum=350, value=170, label="Height (cm)")
             weight_input = gr.Slider(minimum=30, maximum=2000, value=75, label="Weight (kg)")
             sex_input = gr.Radio(choices=["M", "F"], value="M", label="Sex")
+            long_distance = gr.Checkbox(label="Long Distance")
 
         with gr.Column():
             squat_input = gr.Slider(minimum=0, maximum=1000, value=150, label="Squat Max (kg)")
             bench_input = gr.Slider(minimum=0, maximum=700, value=100, label="Bench Press Max (kg)")
             deadlift_input = gr.Slider(minimum=0, maximum=1000, value=180, label="Deadlift Max (kg)")
+            squat_first_attempt = gr.Slider(minimum=0, maximum=1000, value=150, label="Squat Attempt 1 (kg)")
 
     submit_btn = gr.Button("Predict Cluster", variant="primary")
 
