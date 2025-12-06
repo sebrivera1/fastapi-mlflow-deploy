@@ -1,58 +1,33 @@
 # MLflow Model Serving with Ray Serve - Gradio UI Branch
 
-Production-ready model serving backend using FastAPI and MLflow, with Gradio UI.
+POC of Production-ready model serving backend using Ray Serve and MLflow, with Gradio UI.
 
 ## Features
 
-- **FastAPI Backend**: Lightweight, async model serving API
-- **MLflow Integration**: Load and serve models from MLflow Model Registry
+- **Signature-aware API**: Automatically generates API from MLflow model signature
 - **Version multiplexing**: Serve multiple model versions from single endpoint
 - **Signature validation**: Prevents incompatible model versions from being served
 - **Health checks**: Built-in health monitoring
 - **Gradio UI**: User-friendly interface for model inference
-- **Railway Deployment**: Optimized for Railway platform (FastAPI instead of Ray Serve due to PIDs limit)
 
 
 ```
 
-### Gradio UI
+### Gradio UI - Local deployment, Otherwise a Separate Railway or deployed service you need. 
 
 1. Open browser to `http://localhost:7860`
-2. Enter your fitness metrics (height, weight, squat, bench, deadlift)
-3. Click "Predict Cluster"
-4. View prediction results
-
-**Note**: For production, deploy Gradio UI as a separate Railway service
+2. Enter input text
+3. Optionally specify model version
+4. Click Submit
 
 ## Deployment
 
 ### Railway
 
-**Why FastAPI instead of Ray Serve?**
-Railway has a PIDs (process IDs) limit that prevents Ray Serve from running properly. FastAPI provides a lightweight alternative for model serving.
-
-**Backend Service** (`main.py`):
 1. Create new Railway service
-2. Add environment variables:
-   ```
-   MLFLOW_TRACKING_URI=http://your-mlflow-service.railway.internal
-   MODEL_NAME=Demo-DummyModel
-   MODEL_VERSION=1
-   PORT=8080
-   ```
-3. Deploy and note the service URL
-
-**Gradio UI Service** (`app.py`):
-1. Create separate Railway service
-2. Add environment variables:
-   ```
-   BACKEND_URL=http://your-backend-service.railway.internal:8080
-   ```
-   or use public URL:
-   ```
-   BACKEND_URL=https://your-backend-service.up.railway.app
-   ```
-3. Deploy
+2. Add environment variables from `.env.example`
+3. Deploy `serve_backend.py`
+4. Deploy `gradio_ui.py` as separate service with `BACKEND_URL` pointing to backend
 
 ### Docker (TODO)
 
@@ -65,14 +40,11 @@ docker run -p 8000:8000 --env-file .env model-serving
 
 ```
 ┌─────────────┐         ┌──────────────┐         ┌─────────┐
-│  Gradio UI  │────────▶│   FastAPI    │────────▶│ MLflow  │
+│  Gradio UI  │────────▶│  Ray Serve   │────────▶│ MLflow  │
 │   (7860)    │         │   Backend    │         │Registry │
-└─────────────┘         │   (8080)     │         └─────────┘
+└─────────────┘         │   (8000)     │         └─────────┘
                         └──────────────┘
-                             main.py
 ```
-
-**Note**: A Ray Serve implementation is available but cannot be used on Railway due to PIDs limit.
 
 ## Model Requirements
 
@@ -88,15 +60,3 @@ Your MLflow model must:
 **Signature mismatch**: Ensure model versions have compatible signatures
 
 **Port already in use**: Change ports in the Python files or kill existing processes
-
-**Railway Gradio can't connect to backend**:
-- Ensure `BACKEND_URL` includes the correct port (`:8080`)
-- Use Railway internal URL: `http://service-name.railway.internal:8080`
-- Or use public URL: `https://service-name.up.railway.app`
-
-**String to float conversion error**:
-- Ensure you're only sending numeric features to the model
-- Non-numeric fields (like `name`) are automatically filtered out
-
-**FastAPI deprecation warnings**:
-- Code uses modern `lifespan` event handlers instead of deprecated `on_event`
