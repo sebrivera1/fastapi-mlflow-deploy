@@ -10,8 +10,10 @@ from fastapi import FastAPI, Header, HTTPException, status
 from pydantic import BaseModel
 
 # Global state
-MODEL_NAME = os.getenv("MODEL_NAME", "Demo-DummyModel")
+MODEL_NAME = os.getenv("MODEL_NAME", "lifter-kmeans")
 MODEL_VERSION = os.getenv("MODEL_VERSION", "1")
+MODEL_2_NAME = os.getenv("MODEL_2_NAME", "model_a_squat")
+MODEL_2_VERSION = os.getenv("MODEL_2_VERSION", "1")
 model_cache = {}
 default_signature = None
 
@@ -55,18 +57,26 @@ class PredictRequest(BaseModel):
     model_input: Dict[str, Any]
     version: Optional[str] = None
 
-def load_model(version: str):
+class FullPredictRequest(BaseModel):
+    model_input: Dict[str, Any]
+    version: Optional[str] = None
+    model_2_version: Optional[str] = None
+
+def load_model(version: str, model_name: str = None):
     """Load model with caching"""
-    if version not in model_cache:
-        model_uri = f"models:/{MODEL_NAME}/{version}"
+    model_name = model_name or MODEL_NAME
+    cache_key = f"{model_name}:{version}"
+
+    if cache_key not in model_cache:
+        model_uri = f"models:/{model_name}/{version}"
         model = mlflow.pyfunc.load_model(model_uri)
 
-        if default_signature and model.metadata.signature != default_signature:
+        if model_name == MODEL_NAME and default_signature and model.metadata.signature != default_signature:
             raise ValueError(f"Model version {version} has incompatible signature")
 
-        model_cache[version] = model
+        model_cache[cache_key] = model
 
-    return model_cache[version]
+    return model_cache[cache_key]
 
 def transform_payload_to_features(payload: Dict[str, Any]) -> pd.DataFrame:
     """
@@ -224,6 +234,123 @@ async def predict(
             detail=f"Prediction error: {str(e)}"
         )
 
+@app.post("/predict_full")
+async def predict_full(
+    request: FullPredictRequest,
+    serve_multiplexed_model_id: Optional[str] = Header(None)
+):
+    """
+    Two-stage prediction: First model predicts cluster, then second model predicts total.
+
+    Expected input payload:
+    - name: str
+    - long_distance: bool
+    - weight: float (bodyweight in kg)
+    - squat: float (best squat in kg)
+    - bench: float (best bench in kg)
+    - deadlift: float (best deadlift in kg)
+    - sex: str ('M' or 'F')
+    - squat_first_attempt: float (first squat attempt at meet)
+    - total: float (squat + bench + deadlift)
+    """
+    version_1 = request.version or serve_multiplexed_model_id or MODEL_VERSION
+    version_2 = request.model_2_version or MODEL_2_VERSION
+
+    try:
+        # Load both models
+        model_1 = load_model(version_1, MODEL_NAME)
+        model_2 = load_model(version_2, MODEL_2_NAME)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error loading models: {str(e)}"
+        )
+
+    try:
+        payload_input = request.model_input
+
+        # Stage 1: Predict cluster using model_1
+        payload_lower = {k.lower(): v for k, v in payload_input.items()}
+
+        # Extract values for model 1
+        squat_kg = float(payload_lower.get('squat', 0.0))
+        bench_kg = float(payload_lower.get('bench', 0.0))
+        deadlift_kg = float(payload_lower.get('deadlift', 0.0))
+
+        # Transform for model 1 (clustering)
+        cluster_payload = {
+            'Best3SquatKg': squat_kg,
+            'Best3BenchKg': bench_kg,
+            'Best3DeadliftKg': deadlift_kg
+        }
+        df_cluster = transform_payload_to_features(cluster_payload)
+
+        print(f"[Model 1] Transformed input shape: {df_cluster.shape}")
+        print(f"[Model 1] Transformed data:\n{df_cluster.to_dict(orient='records')}")
+
+        # Predict cluster
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", message="X has feature names")
+            cluster_result = model_1.predict(df_cluster)
+
+        # Extract cluster value
+        cluster_value = cluster_result[0] if hasattr(cluster_result, '__getitem__') else cluster_result
+        print(f"[Model 1] Cluster prediction: {cluster_value}")
+
+        # Stage 2: Predict total using model_2 with cluster output
+        # Build payload for model 2
+        model_2_payload = {
+            'Squat1Kg': float(payload_lower.get('squat_first_attempt', squat_kg)),
+            'BodyweightKg': float(payload_lower.get('weight', 0.0)),
+            'Sex': payload_lower.get('sex', 'M').upper(),
+            'Cluster': float(cluster_value),
+            'long_distance_travel': payload_lower.get('long_distance', False)
+        }
+
+        df_total = transform_payload_for_second_model(model_2_payload)
+
+        print(f"[Model 2] Transformed input shape: {df_total.shape}")
+        print(f"[Model 2] Transformed columns: {df_total.columns.tolist()}")
+        print(f"[Model 2] Transformed data:\n{df_total.to_dict(orient='records')}")
+
+        # Predict total
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", message="X has feature names")
+            total_result = model_2.predict(df_total)
+
+        total_prediction = total_result[0] if hasattr(total_result, '__getitem__') else total_result
+        print(f"[Model 2] Total prediction: {total_prediction}")
+
+        return {
+            "cluster_prediction": int(cluster_value) if isinstance(cluster_value, (int, float)) else cluster_value,
+            "total_prediction": float(total_prediction) if isinstance(total_prediction, (int, float)) else total_prediction,
+            "model_1_version": version_1,
+            "model_2_version": version_2,
+            "model_1_name": MODEL_NAME,
+            "model_2_name": MODEL_2_NAME,
+            "input_summary": {
+                "name": payload_lower.get('name', 'Unknown'),
+                "bodyweight_kg": float(payload_lower.get('weight', 0.0)),
+                "sex": payload_lower.get('sex', 'M').upper(),
+                "squat_kg": squat_kg,
+                "bench_kg": bench_kg,
+                "deadlift_kg": deadlift_kg,
+                "squat_first_attempt": float(payload_lower.get('squat_first_attempt', squat_kg)),
+                "long_distance": payload_lower.get('long_distance', False)
+            }
+        }
+    except Exception as e:
+        print(f"Prediction error details:")
+        print(f"  Error: {str(e)}")
+        print(f"  Input payload: {request.model_input}")
+
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Prediction error: {str(e)}"
+        )
+
 @app.get("/health")
 async def health():
     """Health check endpoint"""
@@ -231,6 +358,8 @@ async def health():
         "status": "healthy",
         "model": MODEL_NAME,
         "default_version": MODEL_VERSION,
+        "model_2": MODEL_2_NAME,
+        "model_2_version": MODEL_2_VERSION,
         "cached_versions": list(model_cache.keys())
     }
 
@@ -241,8 +370,11 @@ async def root():
         "service": "MLflow Model Serving",
         "model": MODEL_NAME,
         "default_version": MODEL_VERSION,
+        "model_2": MODEL_2_NAME,
+        "model_2_version": MODEL_2_VERSION,
         "endpoints": {
-            "predict": "/predict",
+            "predict": "/predict (single model - clustering)",
+            "predict_full": "/predict_full (two-stage: clustering + total prediction)",
             "health": "/health",
             "docs": "/docs"
         }
