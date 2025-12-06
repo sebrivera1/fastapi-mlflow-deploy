@@ -33,22 +33,34 @@ def install_model_dependencies(model_name: str, model_version: str) -> bool:
 
         if deps_file:
             print(f"Found dependencies file: {deps_file}")
+
+            # Read and display what's being installed
+            try:
+                with open(deps_file, 'r') as f:
+                    deps_content = f.read()
+                    print(f"Dependencies to install:\n{deps_content}")
+            except Exception as e:
+                print(f"Could not read dependencies file: {e}")
+
             print(f"Installing dependencies for {model_name}...")
 
-            # Install using pip
+            # Install using pip with verbose output
             result = subprocess.run(
-                [sys.executable, "-m", "pip", "install", "-r", deps_file, "--quiet"],
+                [sys.executable, "-m", "pip", "install", "-r", deps_file],
                 capture_output=True,
                 text=True,
-                timeout=300  # 5 minute timeout
+                timeout=600  # 10 minute timeout for h2o
             )
 
             if result.returncode == 0:
                 print(f"✓ Successfully installed dependencies for {model_name}")
+                if result.stdout:
+                    print(f"Install output: {result.stdout[-500:]}")  # Last 500 chars
                 return True
             else:
                 print(f"⚠ Warning: Failed to install some dependencies for {model_name}")
                 print(f"Error: {result.stderr}")
+                print(f"Output: {result.stdout}")
                 return False
         else:
             print(f"No dependencies file found for {model_name}, skipping...")
@@ -59,6 +71,8 @@ def install_model_dependencies(model_name: str, model_version: str) -> bool:
         return False
     except Exception as e:
         print(f"⚠ Warning: Could not install dependencies for {model_name}: {e}")
+        import traceback
+        traceback.print_exc()
         return False
 
 @asynccontextmanager
