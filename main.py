@@ -70,38 +70,78 @@ def load_model(version: str):
 
 def transform_payload_to_features(payload: Dict[str, Any]) -> pd.DataFrame:
     """
-    Transform incoming payload to match the trained model's feature set.
+    Transform incoming payload to percentage-based features for clustering.
+
+    Expected input payload keys:
+    - Best3SquatKg (or best3squatkg, etc.)
+    - Best3BenchKg (or best3benchkg, etc.)
+    - Best3DeadliftKg (or best3deadliftkg, etc.)
+
+    Returns DataFrame with percentage-based features: SquatPct, BenchPct, DeadliftPct
+    """
+    # Create a case-insensitive mapping for the payload
+    payload_lower = {k.lower(): v for k, v in payload.items()}
+
+    # Extract the three lift values
+    squat_kg = float(payload_lower.get('best3squatkg', 0.0))
+    bench_kg = float(payload_lower.get('best3benchkg', 0.0))
+    deadlift_kg = float(payload_lower.get('best3deadliftkg', 0.0))
+
+    # Calculate clustering total
+    clustering_total = squat_kg + bench_kg + deadlift_kg
+
+    # Create temporary DataFrame with the lift values
+    df = pd.DataFrame([{
+        'Best3SquatKg': squat_kg,
+        'Best3BenchKg': bench_kg,
+        'Best3DeadliftKg': deadlift_kg,
+        'ClustingTotal': clustering_total
+    }])
+
+    # Calculate percentage-based features
+    df['SquatPct'] = df['Best3SquatKg'] / df['ClustingTotal']
+    df['BenchPct'] = df['Best3BenchKg'] / df['ClustingTotal']
+    df['DeadliftPct'] = df['Best3DeadliftKg'] / df['ClustingTotal']
+
+    # Return only the percentage features as array values
+    c_array = df[['SquatPct', 'BenchPct', 'DeadliftPct']].values
+
+    # Convert back to DataFrame for consistency with predict function
+    result_df = pd.DataFrame(c_array, columns=['SquatPct', 'BenchPct', 'DeadliftPct'])
+
+    return result_df
+
+def transform_payload_for_second_model(payload: Dict[str, Any]) -> pd.DataFrame:
+    """
+    Transform incoming payload for the second model (after clustering).
 
     Expected input payload keys:
     - Squat1Kg (or squat1kg, etc.)
     - BodyweightKg (or bodyweightkg, etc.)
-    - Sex (values: 'F' or 'M')
-    - Cluster (values: 0.0 to 14.0)
-    - long_distance_travel (boolean or 0/1)
-    - TotalKg (or totalkg, etc.)
+    - Sex ('F' or 'M')
+    - Cluster (0-14, output from first model)
+    - long_distance_travel (boolean)
 
-    Returns DataFrame with all required features in correct format.
+    Returns DataFrame with all required features for second model.
     """
     # Define all expected features in the order the model expects
     expected_features = [
-        'Squat1Kg', 'BodyweightKg',
-        'Sex_F', 'Sex_M',
+        'Squat1Kg', 'BodyweightKg', 'Sex_F', 'Sex_M',
         'Cluster_0.0', 'Cluster_1.0', 'Cluster_2.0', 'Cluster_3.0', 'Cluster_4.0',
         'Cluster_5.0', 'Cluster_6.0', 'Cluster_7.0', 'Cluster_8.0', 'Cluster_9.0',
         'Cluster_10.0', 'Cluster_11.0', 'Cluster_12.0', 'Cluster_13.0', 'Cluster_14.0',
-        'long_distance_travel', 'TotalKg'
+        'long_distance_travel'
     ]
 
     # Create a case-insensitive mapping for the payload
     payload_lower = {k.lower(): v for k, v in payload.items()}
 
-    # Initialize result dictionary with default values (False for booleans, 0.0 for floats)
+    # Initialize result dictionary
     result = {}
 
-    # Extract numeric features (case-insensitive)
+    # Extract numeric features
     result['Squat1Kg'] = float(payload_lower.get('squat1kg', 0.0))
     result['BodyweightKg'] = float(payload_lower.get('bodyweightkg', 0.0))
-    result['TotalKg'] = float(payload_lower.get('totalkg', 0.0))
 
     # One-hot encode Sex
     sex_value = payload_lower.get('sex', '').upper()
@@ -128,10 +168,9 @@ def transform_payload_to_features(payload: Dict[str, Any]) -> pd.DataFrame:
     # Ensure proper types
     df['Squat1Kg'] = df['Squat1Kg'].astype('float64')
     df['BodyweightKg'] = df['BodyweightKg'].astype('float64')
-    df['TotalKg'] = df['TotalKg'].astype('float64')
 
     # Convert boolean columns to bool type
-    bool_columns = [col for col in expected_features if col not in ['Squat1Kg', 'BodyweightKg', 'TotalKg']]
+    bool_columns = [col for col in expected_features if col not in ['Squat1Kg', 'BodyweightKg']]
     for col in bool_columns:
         df[col] = df[col].astype('bool')
 
