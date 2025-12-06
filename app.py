@@ -26,7 +26,7 @@ if "railway.internal" in BACKEND_URL:
 #debug print
 #print(f"[INFO] Backend URL configured as: {BACKEND_URL}")
 
-def predict(name, weight, squat, bench, deadlift, sex):
+def predict(name, weight, squat, bench, deadlift, sex, squat_first_attempt, long_distance):
     """Send prediction request to backend"""
 
     # Prepare request
