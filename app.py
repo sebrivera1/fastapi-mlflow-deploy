@@ -26,26 +26,17 @@ if "railway.internal" in BACKEND_URL:
 #debug print
 #print(f"[INFO] Backend URL configured as: {BACKEND_URL}")
 
-def predict(name, weight, squat, bench, deadlift, sex, squat_first_attempt, long_distance):
-    """Send prediction request to backend"""
+def predict(name, weight, squat, bench, deadlift, sex, long_distance, squat_first_attempt):
+    """Send two-stage prediction request to backend (cluster + total prediction)"""
 
-    # Prepare request
-    url = f"{BACKEND_URL}/predict"
+    # Prepare request for full prediction endpoint
+    url = f"{BACKEND_URL}/predict_full"
     headers = {}
 
     # Calculate total from the three lifts
     total = squat + bench + deadlift
 
-    # Payload 1: Current backend prediction (only 3 lift features)
-    payload = {
-        "model_input": {
-            "Best3SquatKg": squat,
-            "Best3BenchKg": bench,
-            "Best3DeadliftKg": deadlift
-        }
-    }
-
-    # Payload 2: Full feature set for future predictor (stored in memory)
+    # Full payload for two-stage prediction
     full_payload = {
         "model_input": {
             "name": name,
@@ -65,15 +56,40 @@ def predict(name, weight, squat, bench, deadlift, sex, squat_first_attempt, long
     print(f"[INFO] Stored payload #{len(stored_payloads)} in memory for {name}")
 
     try:
-        response = requests.post(url, json=payload, headers=headers)
+        response = requests.post(url, json=full_payload, headers=headers)
 
         if response.status_code == 200:
             result = response.json()
-            prediction = result.get("prediction", "No prediction returned")
-            return f"Cluster Prediction for {name}:\n{prediction}"
+            cluster_pred = result.get("cluster_prediction", "No cluster prediction")
+            total_pred = result.get("total_prediction", "No total prediction")
+
+            output_text = f"""
+Predictions for {name}:
+
+🎯 Cluster Assignment: {cluster_pred}
+📊 Predicted Total: {total_pred:.2f} kg
+
+Input Summary:
+- Bodyweight: {weight} kg
+- Sex: {sex}
+- Best Squat: {squat} kg
+- Best Bench: {bench} kg
+- Best Deadlift: {deadlift} kg
+- Current Total: {total} kg
+- First Squat Attempt: {squat_first_attempt} kg
+- Long Distance Travel: {'Yes' if long_distance else 'No'}
+
+Model Info:
+- Clustering Model: {result.get('model_1_name', 'N/A')} v{result.get('model_1_version', 'N/A')}
+- Total Predictor: {result.get('model_2_name', 'N/A')} v{result.get('model_2_version', 'N/A')}
+"""
+            return output_text
         else:
             # Fallback if backend unavailable
             result = f"""
+<<<<<<< HEAD
+Predictions for {name}:
+=======
 Cluster Prediction for {name}:
 - Weight: {weight} kg
 - Squat: {squat} kg
@@ -81,8 +97,19 @@ Cluster Prediction for {name}:
 - Deadlift: {deadlift} kg
 - Sex: {sex}
 - Total: {total} kg
+>>>>>>> e5c8c69266310150c7efaceefefb67a0b214adc1
 
-Note: Backend unavailable (status {response.status_code}), showing input summary only.
+Note: Backend unavailable (status {response.status_code})
+
+Input Summary:
+- Bodyweight: {weight} kg
+- Sex: {sex}
+- Best Squat: {squat} kg
+- Best Bench: {bench} kg
+- Best Deadlift: {deadlift} kg
+- Current Total: {total} kg
+- First Squat Attempt: {squat_first_attempt} kg
+- Long Distance Travel: {'Yes' if long_distance else 'No'}
 """
             return result
 
@@ -97,7 +124,17 @@ Cluster Prediction for {name}:
 - Sex: {sex}
 - Total: {total} kg
 
-Note: Cannot connect to backend ({str(e)}), showing input summary only.
+Note: Cannot connect to backend ({str(e)})
+
+Input Summary:
+- Bodyweight: {weight} kg
+- Sex: {sex}
+- Best Squat: {squat} kg
+- Best Bench: {bench} kg
+- Best Deadlift: {deadlift} kg
+- Current Total: {total} kg
+- First Squat Attempt: {squat_first_attempt} kg
+- Long Distance Travel: {'Yes' if long_distance else 'No'}
 """
         return result
 
@@ -138,7 +175,7 @@ with gr.Blocks(title="Power Lifting SBD Predictor") as demo:
             deadlift_input = gr.Slider(minimum=0, maximum=1000, value=180, label="Deadlift Max (kg)")
             squat_first_attempt = gr.Slider(minimum=0, maximum=1000, value=150, label="Squat Attempt 1 (kg)")
 
-    submit_btn = gr.Button("Predict Cluster", variant="primary")
+    submit_btn = gr.Button("Get Predictions", variant="primary")
 
     output = gr.Textbox(
         label="Prediction Result",
